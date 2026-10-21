@@ -1,11 +1,12 @@
 import pandas as pd
 
+# The multi-candidate totals endpoint does not return unitemized contributions,
+# so small-donor share is computed per candidate in lookup.py instead.
 MONEY = [
     "receipts",
     "disbursements",
     "cash_on_hand_end_period",
     "individual_itemized_contributions",
-    "individual_unitemized_contributions",
 ]
 COLUMNS = [
     "candidate_id", "name", "party", "party_full", "office", "state", "election_year",

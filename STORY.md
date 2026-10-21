@@ -1,114 +1,54 @@
-# What the data says
+# What I found in the data
 
-I use this file to keep the findings I get from running the tool. Every number here
-should come from a command I ran, with the date next to it.
+These are the findings I got by running my own FEC Data Explorer on live OpenFEC data. I ran every command on 2026-10-21. The FEC keeps updating filings, so if you rerun them later you may see slightly different numbers.
 
-## Commands I ran
+## Finding 1: Senate fundraising in 2024 was extremely uneven
 
-    python -m fecdata totals --cycle 2024 --office H --state DC
-    python -m fecdata totals --cycle 2024 --office S
-    python -m fecdata candidate "NORTON" --cycle 2024
-    python -m fecdata committee "LOCKHEED MARTIN" --cycle 2024
-
-## Questions
-
-1. How much of a race's money comes from small donors?
-2. Is fundraising spread out or held by a few candidates (HHI and Gini)?
-3. Does a corporate PAC split its giving between parties, and how sure am I?
-
-## Findings
-
-Finding 1: Campaign Receipt Distribution Among 2024 U.S. House Candidates in Washington, D.C.
-Command: python -m fecdata totals --cycle 2024 --office H --state DC
-Date run: 2026-10-20
-
-                            name party state  receipts  small_donor_share
-        NORTON, ELEANOR HOLMES   DEM    DC  307917.0                0.0
-              A BROWN, MICHAEL   IND    DC   34785.0                0.0
-               WILLIAMS, KELLY   DEM    DC   23325.0                0.0
-          WATTS, HELCHIC KOTON   OTH    DC       0.0                0.0
-ALEXANDER, MYRTLE PATRICIA DR.   REP    DC       0.0                0.0
-               FREEMAN, KYMONE   OTH    DC       0.0                0.0
-              MALONE, JOAN F M   REP    DC       0.0                0.0
-
-Receipts across candidates
-  n = 3, total = $366,027
-  mean $122,009 vs median $34,785 (ratio 3.5)
-  median 95% CI: $23,325 to $307,917
-  HHI 7,208 (0 to 10,000), Gini 0.518
-
-Finding 2: Campaign Receipt Distribution Among 2024 U.S. Senate Candidates
 Command: python -m fecdata totals --cycle 2024 --office S
-Date run: 2026-10-20
 
-                      name party state     receipts  small_donor_share
-CRUZ, RAFAEL EDWARD  TED   REP    TX 107113865.62                0.0
-          BROWN, SHERROD   DEM    OH 103336340.79                0.0
-          TESTER, R. JON   DEM    MT  98066475.74                0.0
-           ALLRED, COLIN   DEM    TX  94674182.67                0.0
-    CASEY, ROBERT P. JR.   DEM    PA  64886501.07                0.0
-          GALLEGO, RUBEN   DEM    AZ  64657199.96                0.0
-            TRONE, DAVID   DEM    MD  63833136.59                0.0
-          BALDWIN, TAMMY   DEM    WI  59595651.15                0.0
-            ROSEN, JACKY   DEM    NV  52192355.94                0.0
-         SLOTKIN, ELISSA   DEM    MI  51937060.20                0.0
+I found 255 Senate candidates who reported money, together $1,711,792,648. The average candidate raised $6.7 million, but the median candidate raised only $142,864, so the mean is 47 times the median. The Gini coefficient is 0.850, which tells me a few candidates hold most of the money.
 
-Receipts across candidates
-  n = 255, total = $1,711,792,648
-  mean $6,712,912 vs median $142,864 (ratio 47.0)
-  median 95% CI: $68,293 to $355,613
-  HHI 286 (0 to 10,000), Gini 0.850
+The ten biggest fundraisers (Cruz, Brown, Tester, Allred, Casey, Gallego, Trone, Baldwin, Rosen and Slotkin) raised $760.3 million together. That is 44.4% of all the money, from under 4% of the candidates. The top fundraiser, Ted Cruz, raised $107.1 million, or 6.3% of the total.
 
-Finding 3: Candidate Lookup and Campaign Finance Summary for 2024
-Command: python -m fecdata candidate "NORTON" --cycle 2024
-Date run: 2026-10-20
+My HHI is 286 on a scale of 0 to 10,000. That looks low, but it is mostly because there are so many candidates. If all 255 had raised the same amount it would be 39, so the money is about seven times more concentrated than an even split.
 
-1. H6CT02121  NORTON, ANDREW MCCALL  REP  H-CT
-2. H8CA35065  NORTON, BARRY  DEM  H-CA
-3. H6GA07197  NORTON, CASEY  DEM  H-GA
-4. P20000873  NORTON, CHRISTOPHER B (CHRIS)  DEM  P-US
-5. H0DC00058  NORTON, ELEANOR HOLMES  DEM  H-DC
+## Finding 2: Small donors matter a lot for the biggest Senate campaigns, with one exception
 
-NORTON, ANDREW MCCALL (2024)
-  Receipts:      $0
-  Disbursements: $0
-  Cash on hand:  $0
-  Small-donor share of individual money: 0.0%
+Command: python -m fecdata totals --cycle 2024 --office S
 
-Finding 4: Political Contributions by the Lockheed Martin Corporation Employees’ Political Action Committee in 2024
-Command: python -m fecdata committee "LOCKHEED MARTIN" --cycle 2024
-Date run: 2026-10-20
+Among the ten top fundraisers, nine got between 33.9% and 48.4% of their individual money from donors giving $200 or less. Allred was highest at 48.4% and Gallego was close behind at 45.4%. David Trone was the exception at 18.0%. I have not checked why his share is so much lower, so I am not claiming a reason.
 
-1. C00303024  LOCKHEED MARTIN CORPORATION EMPLOYEES' POLITICAL ACTION COMMITTEE  type=PAC - Qualified
+## Finding 3: In the DC House race, one candidate raised most of the money
 
-LOCKHEED MARTIN CORPORATION EMPLOYEES' POLITICAL ACTION COMMITTEE: top recipients in 2024
-                                           recipient_name   total  gifts
-                            REPUBLICAN NATIONAL COMMITTEE 60000.0      2
-                            DEMOCRATIC NATIONAL COMMITTEE 60000.0      2
-              DEMOCRATIC CONGRESSIONAL CAMPAIGN COMMITTEE 45000.0      1
-             REPUBLICAN PARTY OF FLORIDA - HOUSE MAJORITY 10000.0      1
-                               MIKE JOHNSON FOR LOUISIANA  6000.0      2
-                                   TIM SHEEHY FOR MONTANA  5000.0      1
-                                         SENATE EAGLE PAC  5000.0      2
-CA LUV PAC (CALIFORNIA LEADERSHIP UNITED FOR VICTORY PAC)  5000.0      1
-                                             BLUE HEN PAC  5000.0      2
-                                  BIG SKY OPPORTUNITY PAC  5000.0      1
+Command: python -m fecdata totals --cycle 2024 --office H --state DC
 
-Giving by recipient party:
-recipient_party    total  gifts  share
-        Unknown 399500.0    122  0.400
-            REP 356000.0    212  0.356
-            DEM 242000.0    164  0.242
-            IND   2500.0      2  0.002
+Eleanor Holmes Norton raised $307,917 of the $366,027 raised by all DC House candidates, about 84.1%. Four other candidates reported $0. Only three candidates reported money, so I do not rely on the summary statistics for this race, and my tool warns about that.
 
-Size of individual gifts
-  n = 481, total = $1,028,500
-  mean $2,138 vs median $1,000 (ratio 2.1)
-  median 95% CI: $1,000 to $1,000
-  HHI 84 (0 to 10,000), Gini 0.427
-  Dollars to REP: 35.2% (95% CI 27.2% to 43.9%)
+## Finding 4: Norton's individual money came mostly from large donations
+
+Command: python -m fecdata candidate "NORTON" --cycle 2024 --pick 5
+
+The FEC's size breakdown shows $79,667 of individual contributions. I calculate that 9.2% came from donors giving $200 or less, and 49.1% came from donors giving $2,000 or more. Donations of $1,000 or more made up 72.9% of the total. My tool's headline small-donor share is 8.9%. It comes from a different FEC record, which is why it differs a little from my 9.2%.
+
+The top donor employer was The Donohoe Companies Inc. with $16,550 from 14 contributions. A second entry spelled "Donohue" has $3,500 from 4 contributions. They look like two spellings of the same name, which would make $20,050 from 18 contributions, but I have not verified that, so I keep them separate. The FEC reports no count for the $200-and-under bucket, so I do not use it.
+
+## Finding 5: A corporate PAC gave to both parties, but 40% of its money cannot be placed on a party
+
+Command: python -m fecdata committee "LOCKHEED MARTIN" --cycle 2024 --pick 1
+
+The Lockheed Martin Corporation Employees' Political Action Committee gave $1,028,500 in 481 contributions in 2024. The typical gift was $1,000 (median), while the mean was $2,138 because of some much larger gifts. For example, it gave $45,000 in one gift to the DCCC and $60,000 in total to each of the national party committees (two gifts each).
+
+By recipient party, 35.2% of the dollars went to Republican recipients, 24.4% to Democratic recipients, and 0.2% to independents. The other 40.2% went to recipients with no party on record. That group includes the national party committees and other PACs, so I cannot tell the true split between the parties from this data. Among only the recipients that do have a party, 58.9% of the dollars went to Republicans (95% bootstrap interval 47.6% to 69.8%). I treat that as a description of the labeled money, not of the PAC's overall giving.
+
+## What I would do next
+
+I want to label the national committees and leadership PACs, merge employer names that are spelled differently, and bring in the scorecard data from the hackathon prompt so I can compare PAC giving with voting records.
+
+## My limits
+
+My statistics describe the data the FEC returned. They do not show why anyone gave, and they do not show that money caused any vote. My tool reads a limited number of pages for large committees. I recommend checking any number against fec.gov before you quote it.
 
 ## Related work
 
-The GW OSPO PALS repository has FEC data and visualizations that I looked at for ideas.
+I looked at the GW OSPO PALS repository, which has FEC data and visualizations, for ideas.
 FEC bulk data: https://www.fec.gov/data/browse-data/?tab=bulk-data

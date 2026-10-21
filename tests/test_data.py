@@ -1,7 +1,7 @@
 import pandas as pd
 
 from fecdata import lookup
-from fecdata.analysis import small_donor_share, summarize_by_party, top_n
+from fecdata.analysis import fetch_candidate_totals, small_donor_share, summarize_by_party, top_n
 from fecdata.cli import build_parser
 from fecdata.client import FECClient
 
@@ -34,6 +34,18 @@ class KeysetSession:
                      "pagination": {"last_indexes": {"last_index": "9"}}})
 
 
+class TotalsClient:
+    """Fake client that mimics the multi-candidate totals endpoint (no unitemized field)."""
+
+    def paginate(self, path, max_pages=1, **params):
+        yield {"candidate_id": "A", "name": "A", "party": "DEM", "receipts": "300",
+               "disbursements": "200", "individual_itemized_contributions": "80"}
+
+    def get(self, path, **params):
+        return {"results": [{"individual_unitemized_contributions": 20,
+                             "individual_itemized_contributions": 80}]}
+
+
 def sample():
     return pd.DataFrame({
         "candidate_id": ["A", "B", "C"],
@@ -57,6 +69,16 @@ def test_summarize_by_party():
     s = summarize_by_party(sample())
     dem = s[s["party"] == "DEM"].iloc[0]
     assert dem["candidates"] == 2 and dem["total_receipts"] == 400.0
+
+
+def test_fetch_totals_has_no_made_up_small_donor_column():
+    df = fetch_candidate_totals(TotalsClient(), 2024, "S")
+    assert "individual_unitemized_contributions" not in df.columns
+    assert df.loc[0, "receipts"] == 300.0
+
+
+def test_small_donor_share_for_one_candidate():
+    assert lookup.small_donor_share_for(TotalsClient(), "A", 2024) == 0.2
 
 
 def test_paginate_stops_at_last_page():
@@ -85,6 +107,24 @@ def test_contributions_and_summaries():
     split = lookup.party_split(df)
     assert set(split["recipient_party"]) == {"DEM", "Unknown"}
     assert abs(split["share"].sum() - 1.0) < 0.01
+
+
+def test_party_split_leaves_out_refunds():
+    df = pd.DataFrame({
+        "recipient_name": ["A", "A", "B"],
+        "recipient_party": ["DEM", "DEM", "REP"],
+        "amount": [1000.0, -400.0, 1000.0],
+    })
+    split = lookup.party_split(df)
+    dem = split[split["recipient_party"] == "DEM"].iloc[0]
+    assert dem["total"] == 1000.0 and dem["gifts"] == 1
+
+
+def test_clean_employers_drops_placeholders():
+    df = pd.DataFrame({"employer": ["NOT EMPLOYED", "Acme Inc", "SELF-EMPLOYED", None, "Retired"],
+                       "total": [5, 4, 3, 2, 1], "count": [1, 1, 1, 1, 1]})
+    cleaned = lookup.clean_employers(df)
+    assert list(cleaned["employer"]) == ["Acme Inc"]
 
 
 def test_size_breakdown_labels():

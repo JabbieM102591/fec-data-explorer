@@ -5,9 +5,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
+import requests
 
 from . import lookup, stats
-from .analysis import fetch_candidate_totals, small_donor_share, summarize_by_party, top_n
+from .analysis import fetch_candidate_totals, summarize_by_party, top_n
 from .client import FECClient
 
 
@@ -17,8 +18,13 @@ def _bar(labels, values, title, xlabel, path):
     ax.set_xlabel(xlabel)
     ax.set_title(title)
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
+    try:
+        fig.savefig(path, dpi=150)
+    except OSError as err:
+        # Windows refuses to overwrite an image that is open in a viewer.
+        print(f"Could not save chart {path} ({err}). Close it in any viewer and rerun.")
+    finally:
+        plt.close(fig)
 
 
 def _outdir(args):
@@ -33,25 +39,38 @@ def _show_stats(title, s, path):
     print(f"  mean ${s['mean']:,.0f} vs median ${s['median']:,.0f} (ratio {s['mean_to_median']:.1f})")
     print(f"  median 95% CI: ${s['median_ci_low']:,.0f} to ${s['median_ci_high']:,.0f}")
     print(f"  HHI {s['hhi']:,.0f} (0 to 10,000), Gini {s['gini']:.3f}")
+    if s["n"] < 10:
+        print("  Note: fewer than 10 values, so these statistics are not reliable.")
     pd.DataFrame(list(s.items()), columns=["metric", "value"]).to_csv(path, index=False)
 
 
 def cmd_totals(args):
-    df = fetch_candidate_totals(FECClient(), args.cycle, args.office, args.state, args.pages)
+    client = FECClient()
+    df = fetch_candidate_totals(client, args.cycle, args.office, args.state, args.pages)
     if df.empty:
         print("No results. Try a different cycle, office or state.")
         return 1
-    df["small_donor_share"] = small_donor_share(df).round(3)
     out = _outdir(args)
-    df.to_csv(out / "candidate_totals.csv", index=False)
-    summarize_by_party(df).to_csv(out / "party_summary.csv", index=False)
+    tag = f"{args.office}_{args.state or 'US'}_{args.cycle}"
+    df.to_csv(out / f"candidate_totals_{tag}.csv", index=False)
+    summarize_by_party(df).to_csv(out / f"party_summary_{tag}.csv", index=False)
+
     top = top_n(df, args.top)
+    shares = []
+    for cid in top["candidate_id"]:
+        try:
+            shares.append(round(lookup.small_donor_share_for(client, cid, args.cycle), 3))
+        except requests.RequestException:
+            shares.append(float("nan"))
+    top["small_donor_share"] = shares
+    top.to_csv(out / f"top_fundraisers_{tag}.csv", index=False)
     print(top[["name", "party", "state", "receipts", "small_donor_share"]].to_string(index=False))
+
     _show_stats("Receipts across candidates", stats.summary(df["receipts"]),
-                out / "receipts_stats.csv")
+                out / f"receipts_stats_{tag}.csv")
     _bar(top["name"], top["receipts"] / 1e6,
          f"Top fundraisers: {args.cycle} {args.office} {args.state or 'US'}",
-         "Total receipts ($ millions)", out / "top_receipts.png")
+         "Total receipts ($ millions)", out / f"top_receipts_{tag}.png")
     print(f"\nSaved files to {out}/")
     return 0
 
@@ -77,12 +96,14 @@ def cmd_candidate(args):
     tag = cand["candidate_id"]
     if not prof["by_size"].empty:
         prof["by_size"].to_csv(out / f"{tag}_by_size.csv", index=False)
+        print("\nIndividual contributions by size:")
+        print(prof["by_size"][["bucket", "total", "count"]].to_string(index=False))
         _bar(prof["by_size"]["bucket"], prof["by_size"]["total"] / 1e6,
              f"{cand['name']}: contributions by size", "$ millions",
              out / f"{tag}_by_size.png")
     if not prof["employers"].empty:
         prof["employers"].to_csv(out / f"{tag}_top_employers.csv", index=False)
-        print("\nTop donor employers:")
+        print("\nTop donor employers (placeholders such as NOT EMPLOYED removed):")
         print(prof["employers"].head(5).to_string(index=False))
     print(f"\nSaved files to {out}/")
     return 0
@@ -105,7 +126,7 @@ def cmd_committee(args):
     parties = lookup.party_split(df)
     print(f"\n{com['name']}: top recipients in {args.cycle}")
     print(top.to_string(index=False))
-    print("\nGiving by recipient party:")
+    print("\nGiving by recipient party (refunds left out):")
     print(parties.to_string(index=False))
     out = _outdir(args)
     tag = com["committee_id"]
@@ -113,11 +134,18 @@ def cmd_committee(args):
     parties.to_csv(out / f"{tag}_party_split.csv", index=False)
     _show_stats("Size of individual gifts", stats.summary(df["amount"]),
                 out / f"{tag}_gift_stats.csv")
-    known = parties[parties["recipient_party"] != "Unknown"]
-    if not known.empty:
-        party = known.iloc[0]["recipient_party"]
-        share, lo, hi = stats.bootstrap_share_ci(df["amount"], df["recipient_party"] == party)
-        print(f"  Dollars to {party}: {share:.1%} (95% CI {lo:.1%} to {hi:.1%})")
+
+    gifts = df[df["amount"] > 0]
+    if not gifts.empty:
+        unknown = gifts.loc[gifts["recipient_party"] == "Unknown", "amount"].sum()
+        print(f"  Recipients with no party on record: {unknown / gifts['amount'].sum():.1%} of dollars")
+        known = gifts[gifts["recipient_party"] != "Unknown"]
+        if not known.empty:
+            party = known.groupby("recipient_party")["amount"].sum().idxmax()
+            share, lo, hi = stats.bootstrap_share_ci(
+                known["amount"], known["recipient_party"] == party)
+            print(f"  Among recipients with a party, {party} got {share:.1%} "
+                  f"(95% CI {lo:.1%} to {hi:.1%})")
     _bar(top["recipient_name"], top["total"] / 1e3,
          f"{com['name']}: top recipients", "$ thousands", out / f"{tag}_top_recipients.png")
     print(f"\nSaved files to {out}/")
