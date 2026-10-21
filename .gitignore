@@ -4,3 +4,6 @@ __pycache__/
 outputs/
 .env
 .pytest_cache/
+.Rhistory
+.RData
+.Rproj.user/
